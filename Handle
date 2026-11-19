@@ -1,0 +1,521 @@
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local MY_LINK = "BURAYA_LINKINI_YAZ"
+
+local PRESETS = {
+	{name = "Classic", path = "rbxasset://textures/Cursors/KeyboardMouse/ArrowCursor.png"},
+	{name = "Far", path = "rbxasset://textures/Cursors/KeyboardMouse/ArrowFarCursor.png"},
+	{name = "Crosshair", path = "rbxasset://textures/MouseLockedCursor.png"},
+}
+
+local CREDIT = "BY Ph4nt0mN1ght (yusufali_137)"
+
+local C = {
+	bg = Color3.fromRGB(24, 24, 30),
+	panel = Color3.fromRGB(34, 34, 42),
+	item = Color3.fromRGB(46, 46, 56),
+	accent = Color3.fromRGB(88, 125, 255),
+	good = Color3.fromRGB(70, 175, 105),
+	bad = Color3.fromRGB(190, 75, 75),
+	text = Color3.fromRGB(240, 240, 245),
+	muted = Color3.fromRGB(150, 150, 165),
+}
+
+local cursorSize = 32
+local centered = false
+local selectedTile = nil
+
+local function corner(obj, r)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, r or 8)
+	c.Parent = obj
+	return c
+end
+
+local function stroke(obj, color, thick)
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	s.Thickness = thick or 1
+	s.Parent = obj
+	return s
+end
+
+local function label(parent, text, size, pos, sz, font, color, align)
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Text = text
+	l.TextSize = size
+	l.Position = pos
+	l.Size = sz
+	l.Font = font or Enum.Font.Gotham
+	l.TextColor3 = color or C.text
+	l.TextXAlignment = align or Enum.TextXAlignment.Left
+	l.Parent = parent
+	return l
+end
+
+local function button(parent, text, pos, sz, color)
+	local b = Instance.new("TextButton")
+	b.AutoButtonColor = true
+	b.Text = text
+	b.Position = pos
+	b.Size = sz
+	b.BackgroundColor3 = color
+	b.TextColor3 = C.text
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 14
+	b.Parent = parent
+	corner(b, 8)
+	return b
+end
+
+local function toImage(id, path)
+	if path then return path end
+	return "rbxthumb://type=Asset&id=" .. tostring(id) .. "&w=420&h=420"
+end
+
+----------------------------------------------------------------
+-- GUI
+----------------------------------------------------------------
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "CursorSettingsGui"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 50
+gui.Parent = playerGui
+
+----------------------------------------------------------------
+-- CUSTOM CURSOR
+----------------------------------------------------------------
+
+local cursorGui = Instance.new("ScreenGui")
+cursorGui.Name = "CustomCursor"
+cursorGui.ResetOnSpawn = false
+cursorGui.IgnoreGuiInset = true
+cursorGui.DisplayOrder = 9999
+cursorGui.Parent = playerGui
+
+local cursor = Instance.new("ImageLabel")
+cursor.BackgroundTransparency = 1
+cursor.Visible = false
+cursor.Active = false
+cursor.Size = UDim2.fromOffset(cursorSize, cursorSize)
+cursor.ZIndex = 100
+cursor.Parent = cursorGui
+
+local function updateAnchor()
+	cursor.AnchorPoint = centered and Vector2.new(0.5, 0.5) or Vector2.new(0, 0)
+end
+
+updateAnchor()
+
+local function setCursor(img)
+	cursor.Image = img
+	cursor.Visible = true
+end
+
+local function resetCursor()
+	cursor.Visible = false
+	UIS.MouseIconEnabled = true
+
+	if selectedTile then
+		selectedTile.stroke.Color = C.item
+		selectedTile = nil
+	end
+end
+
+RunService.RenderStepped:Connect(function()
+	if cursor.Visible then
+		UIS.MouseIconEnabled = false
+		local pos = UIS:GetMouseLocation()
+		cursor.Position = UDim2.fromOffset(pos.X, pos.Y)
+	end
+end)
+
+----------------------------------------------------------------
+-- SETTINGS BUTTON
+----------------------------------------------------------------
+
+local settingsBtn = Instance.new("TextButton")
+settingsBtn.Size = UDim2.fromOffset(46, 46)
+settingsBtn.Position = UDim2.new(0, 14, 1, -62)
+settingsBtn.BackgroundColor3 = C.bg
+settingsBtn.Text = "⚙"
+settingsBtn.TextSize = 28
+settingsBtn.TextColor3 = C.text
+settingsBtn.Parent = gui
+corner(settingsBtn, 12)
+stroke(settingsBtn, C.accent, 2)
+settingsBtn.Visible = false
+
+----------------------------------------------------------------
+-- SETTINGS FRAME
+----------------------------------------------------------------
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.fromOffset(340, 440)
+frame.Position = UDim2.new(0.5, -170, 0.5, -220)
+frame.BackgroundColor3 = C.bg
+frame.Visible = false
+frame.Parent = gui
+corner(frame, 14)
+stroke(frame, C.accent, 2)
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 48)
+header.BackgroundColor3 = C.panel
+header.Parent = frame
+corner(header, 14)
+
+label(header, "🖱  Cursor Settings", 17, UDim2.fromOffset(14, 4), UDim2.new(1, -60, 0, 24), Enum.Font.GothamBold)
+label(header, CREDIT, 12, UDim2.fromOffset(14, 27), UDim2.new(1, -60, 0, 16), Enum.Font.GothamMedium, C.accent)
+
+local closeBtn = button(header, "X", UDim2.new(1, -38, 0, 9), UDim2.fromOffset(30, 30), C.bad)
+
+closeBtn.MouseButton1Click:Connect(function()
+	frame.Visible = false
+end)
+
+----------------------------------------------------------------
+-- DRAGGING
+----------------------------------------------------------------
+
+do
+	local dragging, dragStart, startPos
+
+	header.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = i.Position
+			startPos = frame.Position
+		end
+	end)
+
+	UIS.InputChanged:Connect(function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			local d = i.Position - dragStart
+			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+		end
+	end)
+
+	UIS.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+----------------------------------------------------------------
+-- PRESETS
+----------------------------------------------------------------
+
+label(frame, "Preset Cursors", 14, UDim2.fromOffset(16, 56), UDim2.fromOffset(200, 20), Enum.Font.GothamBold, C.muted)
+
+local list = Instance.new("ScrollingFrame")
+list.Position = UDim2.fromOffset(12, 80)
+list.Size = UDim2.new(1, -24, 0, 166)
+list.BackgroundColor3 = C.panel
+list.BorderSizePixel = 0
+list.ScrollBarThickness = 4
+list.CanvasSize = UDim2.new()
+list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+list.Parent = frame
+corner(list, 10)
+
+local pad = Instance.new("UIPadding")
+pad.PaddingTop = UDim.new(0, 8)
+pad.PaddingLeft = UDim.new(0, 8)
+pad.PaddingRight = UDim.new(0, 8)
+pad.PaddingBottom = UDim.new(0, 8)
+pad.Parent = list
+
+local grid = Instance.new("UIGridLayout")
+grid.CellSize = UDim2.fromOffset(94, 98)
+grid.CellPadding = UDim2.fromOffset(8, 8)
+grid.SortOrder = Enum.SortOrder.LayoutOrder
+grid.Parent = list
+
+for i, p in ipairs(PRESETS) do
+	local tile = Instance.new("TextButton")
+	tile.Text = ""
+	tile.LayoutOrder = i
+	tile.BackgroundColor3 = C.item
+	tile.Parent = list
+	corner(tile, 10)
+
+	local st = stroke(tile, C.item, 2)
+
+	local img = Instance.new("ImageLabel")
+	img.BackgroundTransparency = 1
+	img.Size = UDim2.fromOffset(52, 52)
+	img.Position = UDim2.new(0.5, -26, 0, 8)
+	img.ScaleType = Enum.ScaleType.Fit
+	img.Image = toImage(p.id, p.path)
+	img.Parent = tile
+
+	local nm = label(tile, p.name, 13, UDim2.new(0, 0, 1, -28), UDim2.new(1, 0, 0, 22), Enum.Font.GothamMedium, C.text, Enum.TextXAlignment.Center)
+	nm.TextTruncate = Enum.TextTruncate.AtEnd
+
+	tile.MouseButton1Click:Connect(function()
+		if selectedTile then
+			selectedTile.stroke.Color = C.item
+		end
+
+		selectedTile = {stroke = st}
+		st.Color = C.accent
+		setCursor(toImage(p.id, p.path))
+	end)
+end
+
+----------------------------------------------------------------
+-- CUSTOM ID
+----------------------------------------------------------------
+
+label(frame, "Your Own Cursor (Image ID)", 14, UDim2.fromOffset(16, 254), UDim2.fromOffset(280, 20), Enum.Font.GothamBold, C.muted)
+
+local idBox = Instance.new("TextBox")
+idBox.Position = UDim2.fromOffset(12, 278)
+idBox.Size = UDim2.new(1, -112, 0, 34)
+idBox.BackgroundColor3 = C.item
+idBox.PlaceholderText = "Paste ID..."
+idBox.PlaceholderColor3 = C.muted
+idBox.Text = ""
+idBox.TextColor3 = C.text
+idBox.Font = Enum.Font.Gotham
+idBox.TextSize = 14
+idBox.ClearTextOnFocus = false
+idBox.Parent = frame
+corner(idBox, 8)
+
+local applyBtn = button(frame, "Apply", UDim2.new(1, -92, 0, 278), UDim2.fromOffset(80, 34), C.good)
+
+local function applyCustom()
+	local id = tonumber(string.match(idBox.Text, "%d+"))
+
+	if id then
+		if selectedTile then
+			selectedTile.stroke.Color = C.item
+			selectedTile = nil
+		end
+
+		setCursor(toImage(id))
+	else
+		idBox.Text = ""
+		idBox.PlaceholderText = "Enter a valid number!"
+	end
+end
+
+applyBtn.MouseButton1Click:Connect(applyCustom)
+idBox.FocusLost:Connect(function(enter)
+	if enter then applyCustom() end
+end)
+
+----------------------------------------------------------------
+-- SIZE SLIDER
+----------------------------------------------------------------
+
+local sizeLabel = label(frame, "Size: " .. cursorSize, 14, UDim2.fromOffset(16, 324), UDim2.fromOffset(200, 20), Enum.Font.GothamBold, C.muted)
+
+local MIN_S, MAX_S = 16, 128
+
+local track = Instance.new("Frame")
+track.Position = UDim2.fromOffset(16, 354)
+track.Size = UDim2.new(1, -32, 0, 8)
+track.BackgroundColor3 = C.item
+track.Parent = frame
+corner(track, 4)
+
+local fill = Instance.new("Frame")
+fill.BackgroundColor3 = C.accent
+fill.Size = UDim2.new((cursorSize - MIN_S) / (MAX_S - MIN_S), 0, 1, 0)
+fill.Parent = track
+corner(fill, 4)
+
+local knob = Instance.new("Frame")
+knob.Size = UDim2.fromOffset(18, 18)
+knob.AnchorPoint = Vector2.new(0.5, 0.5)
+knob.Position = UDim2.new((cursorSize - MIN_S) / (MAX_S - MIN_S), 0, 0.5, 0)
+knob.BackgroundColor3 = C.text
+knob.Parent = track
+corner(knob, 9)
+
+local function setSize(alpha)
+	alpha = math.clamp(alpha, 0, 1)
+	cursorSize = math.floor(MIN_S + (MAX_S - MIN_S) * alpha + 0.5)
+	cursor.Size = UDim2.fromOffset(cursorSize, cursorSize)
+	fill.Size = UDim2.new(alpha, 0, 1, 0)
+	knob.Position = UDim2.new(alpha, 0, 0.5, 0)
+	sizeLabel.Text = "Size: " .. cursorSize
+end
+
+do
+	local sliding = false
+
+	local function fromInput(i)
+		setSize((i.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X)
+	end
+
+	track.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			sliding = true
+			fromInput(i)
+		end
+	end)
+
+	UIS.InputChanged:Connect(function(i)
+		if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			fromInput(i)
+		end
+	end)
+
+	UIS.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			sliding = false
+		end
+	end)
+end
+
+----------------------------------------------------------------
+-- BOTTOM BUTTONS
+----------------------------------------------------------------
+
+local centerBtn = button(frame, "Hotspot: Top-Left", UDim2.fromOffset(12, 386), UDim2.new(0.5, -18, 0, 38), C.item)
+
+centerBtn.MouseButton1Click:Connect(function()
+	centered = not centered
+	updateAnchor()
+	centerBtn.Text = centered and "Hotspot: Center" or "Hotspot: Top-Left"
+end)
+
+local resetBtn = button(frame, "Reset", UDim2.new(0.5, 6, 0, 386), UDim2.new(0.5, -18, 0, 38), C.bad)
+resetBtn.MouseButton1Click:Connect(resetCursor)
+
+settingsBtn.MouseButton1Click:Connect(function()
+	frame.Visible = not frame.Visible
+end)
+
+----------------------------------------------------------------
+-- INTRO SCREEN
+----------------------------------------------------------------
+
+local intro = Instance.new("Frame")
+intro.Size = UDim2.fromOffset(440, 260)
+intro.Position = UDim2.new(0.5, -220, 0.5, -130)
+intro.BackgroundColor3 = C.bg
+intro.Parent = gui
+corner(intro, 18)
+stroke(intro, C.accent, 2)
+
+label(intro, "DO YOU KNOW HOW TO GET CURSOR ID?", 18, UDim2.fromOffset(15, 28), UDim2.new(1, -30, 0, 45), Enum.Font.GothamBold, C.text, Enum.TextXAlignment.Center)
+
+label(intro, CREDIT, 12, UDim2.new(0, 0, 0, 78), UDim2.new(1, 0, 0, 20), Enum.Font.GothamMedium, C.accent, Enum.TextXAlignment.Center)
+
+local yesBtn = button(intro, "WAIT 5s", UDim2.new(0, 35, 1, -75), UDim2.new(0.5, -45, 0, 42), C.good)
+local noBtn = button(intro, "NO", UDim2.new(0.5, 10, 1, -75), UDim2.new(0.5, -45, 0, 42), C.bad)
+
+local countdown = label(intro, "YES available in 5 seconds...", 13, UDim2.new(0, 0, 1, -113), UDim2.new(1, 0, 0, 25), Enum.Font.Gotham, C.muted, Enum.TextXAlignment.Center)
+
+yesBtn.Active = false
+yesBtn.AutoButtonColor = false
+
+local canYes = false
+
+task.spawn(function()
+	for i = 5, 1, -1 do
+		countdown.Text = "YES available in " .. i .. " seconds..."
+		yesBtn.Text = "WAIT " .. i .. "s"
+		task.wait(1)
+	end
+
+	canYes = true
+	yesBtn.Active = true
+	yesBtn.AutoButtonColor = true
+	yesBtn.Text = "YES"
+	countdown.Text = ""
+end)
+
+local function closeIntro()
+	intro.Visible = false
+	settingsBtn.Visible = true
+	frame.Visible = true
+end
+
+yesBtn.MouseButton1Click:Connect(function()
+	if canYes then
+		closeIntro()
+	end
+end)
+
+----------------------------------------------------------------
+-- NO SCREEN
+----------------------------------------------------------------
+
+----------------------------------------------------------------
+-- NO SCREEN
+----------------------------------------------------------------
+
+local guide = Instance.new("Frame")
+guide.Size = UDim2.fromOffset(440, 220)
+guide.Position = UDim2.new(0.5, -220, 0.5, -110)
+guide.BackgroundColor3 = C.bg
+guide.Visible = false
+guide.Parent = gui
+corner(guide, 18)
+stroke(guide, C.accent, 2)
+
+local guideText = label(
+	guide,
+	"PASTE IT INTO YOUR WEB BROWSER",
+	18,
+	UDim2.fromOffset(15, 45),
+	UDim2.new(1, -30, 0, 65),
+	Enum.Font.GothamBold,
+	C.text,
+	Enum.TextXAlignment.Center
+)
+
+guideText.TextWrapped = true
+guideText.TextYAlignment = Enum.TextYAlignment.Center
+
+local agreeBtn = button(
+	guide,
+	"OK, NOW I KNOW",
+	UDim2.new(0.5, -100, 1, -65),
+	UDim2.fromOffset(200, 42),
+	C.good
+)
+
+noBtn.MouseButton1Click:Connect(function()
+	intro.Visible = false
+	guide.Visible = true
+
+	if typeof(setclipboard) == "function" then
+		setclipboard(MY_LINK)
+	end
+end)
+
+agreeBtn.MouseButton1Click:Connect(function()
+	guide.Visible = false
+	settingsBtn.Visible = true
+	frame.Visible = true
+end)
+
+----------------------------------------------------------------
+-- ANIMATION
+----------------------------------------------------------------
+
+intro.BackgroundTransparency = 1
+
+TweenService:Create(
+	intro,
+	TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+	{BackgroundTransparency = 0}
+):Play()
