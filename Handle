@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local MY_LINK = "BURAYA_LINKINI_YAZ"
+local MY_LINK = "https://www.youtube.com/watch?v=O8Vm145vLJU"
 
 local PRESETS = {
 	{name = "Classic", path = "rbxasset://textures/Cursors/KeyboardMouse/ArrowCursor.png"},
