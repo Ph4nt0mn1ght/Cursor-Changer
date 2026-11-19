@@ -324,7 +324,7 @@ end)
 
 local sizeLabel = label(frame, "Size: " .. cursorSize, 14, UDim2.fromOffset(16, 324), UDim2.fromOffset(200, 20), Enum.Font.GothamBold, C.muted)
 
-local MIN_S, MAX_S = 16, 128
+local MIN_S, MAX_S = 16, 200
 
 local track = Instance.new("Frame")
 track.Position = UDim2.fromOffset(16, 354)
